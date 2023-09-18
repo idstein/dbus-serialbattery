@@ -411,8 +411,12 @@ class LltJbd(Battery):
         )
         self.trigger_disable_balancer = None
         new_func_config = None
+        balance_start = None
+        balance_window = None
 
         with self.eeprom():
+            balance_start = self.read_serial_data_llt(readCmd(REG_BAL_START))
+            balance_window = self.read_serial_data_llt(readCmd(REG_BAL_WINDOW))
             func_config = self.read_serial_data_llt(readCmd(REG_FUNC_CONFIG))
             if func_config:
                 self.func_config = unpack_from(">H", func_config)[0]
@@ -422,6 +426,19 @@ class LltJbd(Battery):
                     balancer_enabled == 0 and not disable_balancer
                 ):
                     new_func_config = self.func_config ^ FUNC_BALANCE_EN
+
+        if balance_start and balance_window:
+            balance_start_voltage = unpack_from(">h", balance_start)[0]
+            balance_delta_voltage = unpack_from(">H", balance_window)[0]
+            with self.eeprom(writable=True):
+                new_balance_start = pack(">h", balance_start_voltage)
+                new_balance_window = pack(">H", balance_delta_voltage)
+                reply = self.read_serial_data_llt(
+                    writeCmd(REG_BAL_START, new_balance_start)
+                )
+                reply = self.read_serial_data_llt(
+                    writeCmd(REG_BAL_WINDOW, new_balance_window)
+                )
 
         if new_func_config:
             new_func_config_bytes = pack(">H", new_func_config)
